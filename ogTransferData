@@ -1,0 +1,79 @@
+function transferData() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var activeSheet = findActiveSheetWithCheckedCheckbox();
+  var importTemplate = spreadsheet.getSheetByName('import_template_ab');
+  var shouldMoveData = false;
+  var sourceData = activeSheet.getDataRange().getValues();
+Logger.log("sourceData.length: " + sourceData.length);
+
+// 0-based index
+  var beginIndex = 1; // begin_location, column B
+  var partNumberIndex = 2; // part_number, column C
+  var pickQtyIndex = 4; // quantity, column E  
+  var vendorUOMIndex = 6; //vendor_uom, column G  
+  var productionIndex = 10; //used for production, column K
+  var moveBoxIndex = 12; // move_box, column M  
+  var partCountIndex = 13; //part_count, column N
+  var shortQtyIndex = 14; // qty_short, column O
+  var onHandIndex = 16; // on_hand, column Q
+
+  var valuesToPaste = []; // Array to accumulate values
+
+  for (var i = sourceData.length - 1; i >= 1; i--) { // Start from the last row and go up to row 2 (index 1)
+    var begin_location = sourceData[i][beginIndex]; // begin_location, column B
+    var partNumber = sourceData[i][partNumberIndex]; // part_number, column C
+    var pickQty = sourceData[i][pickQtyIndex]; // quantity, column E  
+    var vendorUOM = sourceData[i][vendorUOMIndex]; //vendor_uom, column G 
+    var production = sourceData[i][productionIndex]; //used for production, column K
+    var moveBox = sourceData[i][moveBoxIndex]; // move_box, column M
+    var partCounts = parseInt(sourceData[i][partCountIndex]);//part_count, column N
+    var shortDiff = sourceData[i][shortQtyIndex]; // qty_short, column O
+    var prevDiff = sourceData[i-1][shortQtyIndex]; // qty_short, column O but previous row value
+    var onHand = sourceData[i][onHandIndex]; // on_hand, column Q
+
+
+    if (moveBox === true){
+        Logger.log(partNumber + ", " + shortDiff)
+        if(partCounts === 1 && shortDiff === ""){ //if there is sufficient qty on hand and additional data does NOT need to be brought in from master data tab
+         var quantities = (Number(vendorUOM) * Number(production)).toFixed(2);
+          shouldMoveData = true
+          Logger.log(partNumber + ": " + quantities)
+        }
+        else if (shortDiff >= 0){ //if there is insufficient qty on hand for this part, then use up all of the on hand for this part
+         var quantities = onHand; 
+          shouldMoveData = true
+          Logger.log(partNumber + ": " + quantities)
+      } else if (shortDiff < 0){ //if additional iterations of the same part have been brought in and this is the last version of the part
+         var quantities = prevDiff 
+          shouldMoveData = true
+          Logger.log(partNumber + ": " + quantities)
+      }
+    
+      var end_location = 'Atom Banana_Meal Kit-Picking';
+      var notes = " ";
+      var exp_date = " ";
+      var lot_number = " ";
+      valuesToPaste.push([partNumber, begin_location, quantities, end_location, notes, lot_number, exp_date, partCounts]);
+   
+
+  if (valuesToPaste.length > 0) {
+    // Specify the row where you want to start pasting the values (replace 'targetRow' accordingly)
+    var targetRow = 2;
+    
+    // Set values in the first column of the 'import_template_ab' sheet
+    importTemplate.getRange(targetRow, 1, valuesToPaste.length, valuesToPaste[0].length).setValues(valuesToPaste);
+    Logger.log('Data copied successfully!');
+     } else {
+    Logger.log('No data to copy.');
+  }
+
+}}  // Call the setFormulaForColumn function after the existing logic
+    // Transfer data if the flag is still true
+     if (shouldMoveData) {
+    // Set move boxes to false
+    for (var i = sourceData.length - 1; i >= 1; i--) {
+      activeSheet.getRange(i + 1, moveBoxIndex + 1).setValue(false); // Assuming move box index is 1-based
+    }
+    setFormulaForColumn();
+  }
+}
